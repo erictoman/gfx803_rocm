@@ -71,6 +71,63 @@ Ollama, PyTorch, Torchvision/Torchaudio _and_ rocBLAS-Library are not compiled t
 1. Checkout this GIT repo via `git clone https://github.com/robertrosenbusch/gfx803_rocm.git` and change into the directory `gfx803_rocm`
 2. Build the GFX803-Base-Docker-Image `docker build -f Dockerfile_rocm64_base . -t 'rocm6_gfx803_base:6.4'`
 
+### CI/CD - Automated Builds
+
+This repository uses GitHub Actions to automatically build and push Docker images.
+
+#### Using Pre-built Images
+
+Docker images are automatically built and pushed to GitHub Container Registry (GHCR) when:
+- Code is pushed to `main` or `develop` branches
+- Pull requests are created
+- Version tags are pushed (e.g., v1.2.3)
+- Manually triggered from GitHub Actions
+
+##### Pull Images from GHCR
+
+```bash
+# Login to GitHub Container Registry
+echo $GITHUB_TOKEN | docker login ghcr.io -u <your-username> --password-stdin
+
+# Pull the latest base image
+docker pull ghcr.io/<owner>/gfx803_rocm-base:latest
+
+# Pull specific application images
+docker pull ghcr.io/<owner>/gfx803_rocm-Dockerfile_rocm64_ollama:latest
+docker pull ghcr.io/<owner>/gfx803_rocm-Dockerfile_rocm64_comfyui:latest
+docker pull ghcr.io/<owner>/gfx803_rocm-Dockerfile_rocm64_pytorch:latest
+docker pull ghcr.io/<owner>/gfx803_rocm-Dockerfile_rocm64_whisperx:latest
+docker pull ghcr.io/<owner>/gfx803_rocm-Dockerfile_rocm64_llamacpp:latest
+```
+
+#### Docker Compose for Local Development
+
+For easier local testing, use Docker Compose:
+
+```bash
+# Build and start Ollama
+docker compose --profile ollama up rocm-ollama
+
+# Build and start ComfyUI
+docker compose --profile comfyui up rocm-comfyui
+
+# Build and start PyTorch
+docker compose --profile pytorch up rocm-pytorch
+
+# Build and start WhisperX
+docker compose --profile whisperx up rocm-whisperx
+
+# Build and start llama.cpp
+docker compose --profile llamacpp up rocm-llamacpp
+
+# Build base image only
+docker compose --profile base up rocm-base
+```
+
+#### Manual Building
+
+See [`.github/workflows/README.md`](.github/workflows/README.md) for detailed CI/CD documentation.
+
 ---
 ## Ollama
 

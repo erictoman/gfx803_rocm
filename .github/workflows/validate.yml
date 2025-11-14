@@ -1,0 +1,60 @@
+name: Validate Dockerfiles
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate-dockerfiles:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Dockerfile syntax
+        run: |
+          for dockerfile in Dockerfile_rocm64_*.docker; do
+            if [ -f "$dockerfile" ]; then
+              echo "Checking $dockerfile..."
+              docker run --rm -i hadolint/hadolint < "$dockerfile" || true
+            fi
+          done
+
+      - name: List available Dockerfiles
+        run: |
+          echo "Found the following Dockerfiles:"
+          ls -la Dockerfile_rocm64_*.docker 2>/dev/null || echo "No Dockerfiles found"
+
+  check-dependencies:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Dockerfile dependencies
+        run: |
+          echo "Checking Dockerfile dependencies..."
+
+          # Check if base image exists
+          grep -l "FROM rocm6_gfx803_base" Dockerfile_rocm64_*.docker | while read -r file; do
+            if [ ! -f "Dockerfile_rocm64_base" ]; then
+              echo "ERROR: $file depends on rocm6_gfx803_base but Dockerfile_rocm64_base doesn't exist"
+              exit 1
+            else
+              echo "✓ $file has valid base image dependency"
+            fi
+          done
+
+      - name: Verify exposed ports
+        run: |
+          echo "Checking exposed ports..."
+          for dockerfile in Dockerfile_rocm64_*.docker; do
+            if grep -q "EXPOSE" "$dockerfile"; then
+              echo "Ports exposed in $dockerfile:"
+              grep "EXPOSE" "$dockerfile"
+            fi
+          done

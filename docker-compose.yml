@@ -1,0 +1,157 @@
+version: '3.8'
+
+# Docker Compose configuration for ROCm GFX803 Docker images
+# Usage:
+#   docker compose up <service-name>
+#   docker compose build <service-name>
+
+services:
+  # Base ROCm image (must be built first)
+  rocm-base:
+    build:
+      context: .
+      dockerfile: Dockerfile_rocm64_base
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: rocm6_gfx803_base:6.4
+    container_name: rocm-base
+    profiles:
+      - base
+    command: /bin/bash -c "tail -f /dev/null"
+
+  # Ollama - LLM Server with Open WebUI
+  rocm-ollama:
+    build:
+      context: .
+      dockerfile: Dockerfile_rocm64_ollama
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: rocm64_gfx803_ollama:0.9.0
+    container_name: rocm-ollama
+    ports:
+      - "8080:8080"  # Open WebUI
+      - "11434:11434"  # Ollama API
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    groups:
+      - video
+    ipc: host
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - HSA_OVERRIDE_GFX_VERSION=8.0.3
+    profiles:
+      - ollama
+    depends_on:
+      - rocm-base
+
+  # ComfyUI - Image generation
+  rocm-comfyui:
+    build:
+      context: .
+      dockerfile: Dockerfile_rocm64_comfyui
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: rocm64_gfx803_comfyui:latest
+    container_name: rocm-comfyui
+    ports:
+      - "8188:8188"
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    groups:
+      - video
+    ipc: host
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      - HSA_OVERRIDE_GFX_VERSION=8.0.3
+      - MIOPEN_LOG_LEVEL=3
+    volumes:
+      - ./models:/comfy/models
+    profiles:
+      - comfyui
+    depends_on:
+      - rocm-base
+
+  # PyTorch - Base PyTorch with GFX803 support
+  rocm-pytorch:
+    build:
+      context: .
+      dockerfile: Dockerfile_rocm64_pytorch
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: rocm64_gfx803_pytorch:2.6
+    container_name: rocm-pytorch
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    groups:
+      - video
+    ipc: host
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      - HSA_OVERRIDE_GFX_VERSION=8.0.3
+    profiles:
+      - pytorch
+    depends_on:
+      - rocm-base
+
+  # WhisperX - Speech recognition
+  rocm-whisperx:
+    build:
+      context: .
+      dockerfile: Dockerfile_rocm64_whisperx
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: rocm64_gfx803_whisperx:latest
+    container_name: rocm-whisperx
+    ports:
+      - "7860:7860"
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    groups:
+      - video
+    ipc: host
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      - HSA_OVERRIDE_GFX_VERSION=8.0.3
+      - JOBLIB_MULTIPROCESSING=0
+    profiles:
+      - whisperx
+    depends_on:
+      - rocm-base
+
+  # llama.cpp - Lightweight local inference
+  rocm-llamacpp:
+    build:
+      context: .
+      dockerfile: Dockerfile_rocm64_llamacpp
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: rocm64_gfx803_llamacpp:latest
+    container_name: rocm-llamacpp
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    groups:
+      - video
+    environment:
+      - HSA_OVERRIDE_GFX_VERSION=8.0.3
+    profiles:
+      - llamacpp
+    depends_on:
+      - rocm-base

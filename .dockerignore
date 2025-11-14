@@ -1,0 +1,58 @@
+# Git files
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# CI/CD
+.github/
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# Node modules (if any)
+node_modules/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test files
+test/
+tests/
+*.test.js
+*.test.py
+
+# Build artifacts (except wheels)
+build/
+dist/*.tar.gz
+dist/*.zip
+
+# Benchmark results
+benchmark/results/
+
+# Development files
+dev/

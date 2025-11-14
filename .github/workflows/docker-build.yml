@@ -1,0 +1,205 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      dockerfile:
+        description: 'Specific Docker image to build'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - base
+          - ollama
+          - comfyui
+          - pytorch
+          - whisperx
+          - llamacpp
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-base-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for base image
+        id: meta-base
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-base
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push base image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile_rocm64_base
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta-base.outputs.tags }}
+          labels: ${{ steps.meta-base.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-dependent-images:
+    runs-on: ubuntu-latest
+    if: ${{ always() && (needs.build-base-image.result == 'success' || needs.build-base-image.result == 'skipped') }}
+    needs: build-base-image
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        dockerfile:
+          - Dockerfile_rocm64_ollama
+          - Dockerfile_rocm64_comfyui
+          - Dockerfile_rocm64_pytorch
+          - Dockerfile_rocm64_whisperx
+          - Dockerfile_rocm64_llamacpp
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for dependent images
+        id: meta-dependent
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.dockerfile }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push dependent image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta-dependent.outputs.tags }}
+          labels: ${{ steps.meta-dependent.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-specific-image:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.dockerfile != 'all' && github.event.inputs.dockerfile != '' }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine Docker file
+        id: dockerfile
+        run: |
+          case "${{ github.event.inputs.dockerfile }}" in
+            base)
+              echo "file=Dockerfile_rocm64_base" >> $GITHUB_OUTPUT
+              echo "name=base" >> $GITHUB_OUTPUT
+              ;;
+            ollama)
+              echo "file=Dockerfile_rocm64_ollama" >> $GITHUB_OUTPUT
+              echo "name=ollama" >> $GITHUB_OUTPUT
+              ;;
+            comfyui)
+              echo "file=Dockerfile_rocm64_comfyui" >> $GITHUB_OUTPUT
+              echo "name=comfyui" >> $GITHUB_OUTPUT
+              ;;
+            pytorch)
+              echo "file=Dockerfile_rocm64_pytorch" >> $GITHUB_OUTPUT
+              echo "name=pytorch" >> $GITHUB_OUTPUT
+              ;;
+            whisperx)
+              echo "file=Dockerfile_rocm64_whisperx" >> $GITHUB_OUTPUT
+              echo "name=whisperx" >> $GITHUB_OUTPUT
+              ;;
+            llamacpp)
+              echo "file=Dockerfile_rocm64_llamacpp" >> $GITHUB_OUTPUT
+              echo "name=llamacpp" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Extract metadata for specific image
+        id: meta-specific
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ steps.dockerfile.outputs.name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push specific image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./${{ steps.dockerfile.outputs.file }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta-specific.outputs.tags }}
+          labels: ${{ steps.meta-specific.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
